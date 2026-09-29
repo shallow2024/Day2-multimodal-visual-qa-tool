@@ -1,4 +1,4 @@
-"""Day 2: ask a Groq vision model questions about local or online images."""
+"""Day 2: ask a hosted vision model questions about local or online images."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from groq import Groq
 from PIL import Image
 
 DEFAULT_MODEL = "llama-3.2-11b-vision-instruct"
+HF_DEFAULT_MODEL = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -130,17 +131,31 @@ def analyze_image(
     question: str,
     *,
     client: Any | None = None,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
+    provider: str = "groq",
     max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> VisionAnswer:
-    """Encode an image, call Groq's vision model, and parse a structured answer."""
+    """Encode an image, call a vision provider, and parse a structured answer."""
     if not question.strip():
         raise VisionQaError("Question cannot be empty.")
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if provider not in {"groq", "huggingface"}:
+        raise VisionQaError("provider must be 'groq' or 'huggingface'.")
+    selected_model = model or (HF_DEFAULT_MODEL if provider == "huggingface" else DEFAULT_MODEL)
     if client is None:
-        if not api_key:
-            raise VisionQaError("GROQ_API_KEY is missing. Set it before asking the vision model a question.")
-        client = Groq(api_key=api_key)
+        if provider == "groq":
+            api_key = os.getenv("GROQ_API_KEY", "").strip()
+            if not api_key:
+                raise VisionQaError("GROQ_API_KEY is missing. Set it before asking the vision model a question.")
+            client = Groq(api_key=api_key)
+        else:
+            api_key = os.getenv("HF_TOKEN", "").strip()
+            if not api_key:
+                raise VisionQaError("HF_TOKEN is missing. Create a Hugging Face token with Inference Providers permission.")
+            try:
+                from huggingface_hub import InferenceClient
+                client = InferenceClient(model=selected_model, api_key=api_key)
+            except ImportError as exc:
+                raise VisionQaError("Install huggingface_hub to use the Hugging Face provider.") from exc
 
     image = encode_image(source, max_bytes=max_bytes)
     prompt = (
@@ -152,7 +167,7 @@ def analyze_image(
     )
     try:
         completion = client.chat.completions.create(
-            model=model,
+            model=selected_model,
             temperature=0.1,
             max_tokens=500,
             messages=[
@@ -167,14 +182,14 @@ def analyze_image(
             ],
         )
     except Exception as exc:
-        raise VisionQaError(f"Groq vision request failed: {exc}") from exc
+        raise VisionQaError(f"{provider} vision request failed: {exc}") from exc
 
     try:
         content = completion.choices[0].message.content
     except (AttributeError, IndexError, TypeError) as exc:
-        raise VisionQaError("Groq returned an unexpected response shape.") from exc
+        raise VisionQaError(f"{provider} returned an unexpected response shape.") from exc
     if not content:
-        raise VisionQaError("Groq returned an empty response.")
+        raise VisionQaError(f"{provider} returned an empty response.")
 
     parsed = _extract_json(content)
     answer = parsed.get("answer")
@@ -183,16 +198,17 @@ def analyze_image(
     return VisionAnswer(
         answer=answer.strip(),
         objects=_normalise_objects(parsed.get("objects")),
-        model=model,
+        model=selected_model,
         source=source,
     )
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Ask Groq's vision model a question about an image.")
+    parser = argparse.ArgumentParser(description="Ask a hosted vision model a question about an image.")
     parser.add_argument("image", help="Local image path or HTTP(S) image URL")
     parser.add_argument("question", help="Question to ask about the image")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"Groq model (default: {DEFAULT_MODEL})")
+    parser.add_argument("--provider", choices=("groq", "huggingface"), default="groq")
+    parser.add_argument("--model", default=None, help="Provider model (defaults based on --provider)")
     parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES, help="Maximum image size")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     return parser.parse_args()
@@ -201,7 +217,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        result = analyze_image(args.image, args.question, model=args.model, max_bytes=args.max_bytes)
+        result = analyze_image(args.image, args.question, provider=args.provider, model=args.model, max_bytes=args.max_bytes)
         if args.json:
             print(json.dumps(asdict(result), indent=2))
         else:

@@ -9,6 +9,7 @@ from PIL import Image
 
 from vision_qa import (
     DEFAULT_MODEL,
+    HF_DEFAULT_MODEL,
     VisionQaError,
     analyze_image,
     encode_image,
@@ -102,3 +103,18 @@ def test_analyze_image_rejects_empty_question(tmp_path):
     path = make_test_image(tmp_path)
     with pytest.raises(VisionQaError, match="cannot be empty"):
         analyze_image(str(path), "  ", client=object())
+
+
+def test_huggingface_provider_uses_huggingface_default_model(tmp_path):
+    path = make_test_image(tmp_path)
+    captured = {}
+
+    def create(**kwargs):
+        captured.update(kwargs)
+        return fake_completion('{"answer":"A blue square is visible.", "objects":{}}')
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    result = analyze_image(str(path), "What is visible?", provider="huggingface", client=client)
+
+    assert result.model == HF_DEFAULT_MODEL
+    assert captured["model"] == HF_DEFAULT_MODEL

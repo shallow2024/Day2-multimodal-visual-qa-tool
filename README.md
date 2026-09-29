@@ -1,6 +1,6 @@
 # Day2 — Multimodal Visual QA Tool
 
-A small Python command-line tool that accepts a local or online image, encodes it as a Base64 data URL, sends it with a natural-language question to Groq's vision model, and prints a structured answer with object counts.
+A small Python command-line tool that accepts a local or online image, encodes it as a Base64 data URL, sends it with a natural-language question to a hosted vision model, and prints a structured answer with object counts. It supports Groq and Hugging Face Inference Providers.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ flowchart LR
     C --> D[Base64 data URL]
     Q[User question] --> E[Multimodal prompt]
     D --> E
-    E --> F[Groq vision model]
+    E --> F[Groq or Hugging Face\nvision provider]
     F --> G[JSON answer + object counts]
     G --> H[CLI output]
 ```
@@ -24,15 +24,15 @@ flowchart LR
 - Base64 encoding for a multimodal request.
 - Structured JSON output with an answer and object counts.
 - Safe image-size limits and missing-key errors.
-- Unit tests that mock the Groq API, so tests do not spend API quota.
+- Unit tests that mock the provider API, so tests do not spend API quota.
 
 ## Requirements
 
 - Python 3.10 or newer.
-- A Groq API key for real vision requests.
+- A Groq API key or Hugging Face token for real vision requests.
 - Internet access for URL images and the Groq API.
 
-Groq access and model availability can change. The default model is the model requested for this Day 2 exercise: `llama-3.2-11b-vision-instruct`. You can override it with `--model` if your Groq account exposes a different compatible vision model.
+Provider access and model availability can change. The Groq default is `llama-3.2-11b-vision-instruct`. The Hugging Face default is `meta-llama/Llama-3.2-11B-Vision-Instruct`. You can override either with `--model`.
 
 ## Windows setup
 
@@ -42,12 +42,18 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Set the API key
+## Set a provider credential
 
 PowerShell, for the current terminal window only:
 
 ```powershell
 $env:GROQ_API_KEY = "your-groq-api-key"
+```
+
+For Hugging Face Inference Providers, create a fine-grained token with **Make calls to Inference Providers** permission, then set:
+
+```powershell
+$env:HF_TOKEN = "hf_your-token"
 ```
 
 Command Prompt:
@@ -58,10 +64,18 @@ set GROQ_API_KEY=your-groq-api-key
 
 Never commit the key to GitHub.
 
+Hugging Face routed requests use the Hugging Face token and may use monthly credits or provider limits. Check the current [Inference Providers pricing](https://huggingface.co/docs/inference-providers/en/pricing). Hugging Face supports multiple providers through one interface, but a particular model must currently be available through an eligible provider.
+
 ## Run with a local image
 
 ```powershell
 .\.venv\Scripts\python.exe vision_qa.py "C:\Users\YourName\Pictures\scene.jpg" "What objects are visible in this image?"
+```
+
+To use Hugging Face instead of Groq:
+
+```powershell
+.\.venv\Scripts\python.exe vision_qa.py "C:\Users\YourName\Pictures\scene.jpg" "What objects are visible in this image?" --provider huggingface
 ```
 
 For machine-readable output:
@@ -95,7 +109,7 @@ The URL must return an actual supported image: JPEG, PNG, WEBP, or GIF. The defa
 
 ## Run tests
 
-The tests create a small local image and use a mocked Groq client. No API key is needed:
+The tests create a small local image and use a mocked provider client. No API key is needed:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -103,7 +117,7 @@ The tests create a small local image and use a mocked Groq client. No API key is
 
 ## Important implementation details
 
-The tool sends the vision model a message containing two content parts:
+The tool sends the selected vision model a message containing two content parts:
 
 1. A text prompt asking for a grounded answer in JSON.
 2. A Base64 `data:image/...` URL containing the image.
@@ -112,7 +126,7 @@ The model is instructed not to guess objects that are not visibly supported. The
 
 ## Limitations and next steps
 
-This is a learning prototype, not a production image moderation or safety system. A future version could add a web interface, image resizing, conversation history, source metadata, retry and timeout policies, request logging, authentication, and a human-review path for uncertain visual answers. Do not upload private or sensitive images without reviewing the provider's current privacy and retention terms.
+This is a learning prototype, not a production image moderation or safety system. A future version could add a web interface, image resizing, conversation history, source metadata, retry and timeout policies, request logging, authentication, and a human-review path for uncertain visual answers. Do not upload private or sensitive images without reviewing the selected provider's current privacy and retention terms.
 
 ## License
 
