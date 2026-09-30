@@ -32,7 +32,7 @@ flowchart LR
 - A Groq API key or Hugging Face token for real vision requests.
 - Internet access for URL images and the Groq API.
 
-Provider access and model availability can change. The Groq default is `llama-3.2-11b-vision-instruct`. The Hugging Face default is `Qwen/Qwen2.5-VL-7B-Instruct`, which currently has a live Inference Provider mapping. You can override either with `--model`.
+Provider access and model availability can change. The Groq default is `llama-3.2-11b-vision-instruct`. The Hugging Face default is `Qwen/Qwen2.5-VL-7B-Instruct:featherless-ai`, using the explicit provider-routing suffix shown in Hugging Face's OpenAI-compatible examples. You can override either with `--model`.
 
 ## Windows setup
 
