@@ -19,7 +19,7 @@ from groq import Groq
 from PIL import Image
 
 DEFAULT_MODEL = "llama-3.2-11b-vision-instruct"
-HF_DEFAULT_MODEL = "meta-llama/Llama-3.2-11B-Vision-Instruct"
+HF_DEFAULT_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct"
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
